@@ -3,6 +3,7 @@
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <LiquidCrystal_I2C.h>
+#include <esp_sleep.h>
 
 #include <WiFiClient.h>
 #include <WebServer.h>
@@ -13,11 +14,17 @@
 #define DHTTYPE DHT11
 #define MQ2PIN 36  //MQ2PIN là chân ADC 
 #define BUZZER_PIN 25 
+#define WAKEUP_TIME 20 // Thời gian đánh thức định kỳ (giây)
 
 DHT dht(DHTPIN, DHTTYPE);
 float mq2Value = 0;
 unsigned long previousMillis = 0;
 int readingId = 1; // ID của lần đọc
+
+//biến cho light sleep
+bool inLightSleep = true; // Trạng thái hiện tại là light sleep
+unsigned long activeStartTime = 0; // Thời gian bắt đầu active mode
+const unsigned long ACTIVE_DURATION = 5 * 60 * 1000; // 5 phút
 
 // Thông tin mạng Wi-Fi
 const char* ssid = "199TKC-Tầng 2";
@@ -27,7 +34,7 @@ const char* password =  "19922222";
 const char* host = "esp32hungle";
 
 // Địa chỉ API
-const char* serverUrl = "http://45.117.179.18:5000/postData";
+const char* serverUrl = "http://45.117.179.18:5000/data";
 
 // Khởi tạo LCD I2C
 LiquidCrystal_I2C lcd(0x27 , 16, 2); // Địa chỉ I2C là 0x27, LCD 16x2
@@ -115,6 +122,8 @@ const char* serverIndex =
   "});"
   "</script>";
 
+
+
 void setup() {
   Serial.begin(9600);
   
@@ -199,41 +208,63 @@ void setup() {
     }
   });
   server.begin();
+
+  esp_sleep_enable_timer_wakeup(WAKEUP_TIME * 1000000); // Thời gian wakeup 30 giây
 }
 
 void loop() {
-
   server.handleClient();
   delay(1);
 
   unsigned long currentMillis = millis();
-  
-  if (currentMillis - previousMillis >= 1000) { // Cập nhật để gửi mỗi 1s một lần
+
+  // Kiểm tra điều kiện
+  bool state = false;
+  bool abnormal = false;
+
+  // Kiểm tra trạng thái light sleep
+  if (inLightSleep && !state && !abnormal) {
+    Serial.println("Entering light sleep...");
+    lcd.clear();
+    lcd.print("Light sleep...");
+    delay(500); // Hiển thị trạng thái light sleep trước khi ngủ
+
+    // Đặt timer wakeup và đưa ESP32 vào light sleep
+    esp_sleep_enable_timer_wakeup(30000000); // Wakeup sau 30 giây (30*10^6 us)
+    esp_light_sleep_start();
+
+    Serial.println("Woke up from light sleep!");
+    previousMillis = millis(); // Reset thời gian sau khi thức dậy
+    inLightSleep = false; // Chuyển sang trạng thái active để kiểm tra dữ liệu
+  }
+
+  // Gửi dữ liệu và kiểm tra cảm biến mỗi 30 giây
+  if (currentMillis - previousMillis >= 30000 ) {
     previousMillis = currentMillis;
-    
+
     float h = dht.readHumidity();
     float t = dht.readTemperature();
-    mq2Value = analogRead(MQ2PIN) / 1023.0 * 3.3; // Chuyển đổi giá trị analogRead về dạng float
+    mq2Value = analogRead(MQ2PIN) / 1023.0 * 3.3; // Chuyển đổi giá trị analogRead về float
 
-    // random h, t nếu dht11 lỗi 
+    // Random giá trị nếu cảm biến lỗi
     if (isnan(h) || isnan(t)) {
       h = 70 + rand() % 6; // Giới hạn từ 70-75%
       t = 17 + rand() % 4; // Giới hạn từ 17-20
     }
 
-    // Kiểm tra các điều kiện và xác định trạng thái
-    bool state = false;
-
-    if (mq2Value > 4.5 || t > 40.0 || h > 75.0) {
-      state = true; 
-      digitalWrite(BUZZER_PIN, HIGH); // Bật còi buzzer
+    if (mq2Value > 4.5 || t > 40.0 || h > 80.0) {
+      state = true; // Phát hiện nguy hiểm, chuyển sang trạng thái báo động
+      abnormal = true;
+      digitalWrite(BUZZER_PIN, HIGH); // Kích hoạt còi báo động
       lcd.setCursor(0, 1);
       lcd.print("!!! ALERT !!!");
+    } else if (mq2Value > 3.0 || t > 35.0 || h > 75.0) {
+      abnormal = true; // Phát hiện thay đổi bất thường nhưng chưa đến mức báo động 
     } else {
-      digitalWrite(BUZZER_PIN, LOW); // Tắt còi buzzer
+      digitalWrite(BUZZER_PIN, LOW); // Tắt còi báo động
     }
 
-     
+    // Hiển thị dữ liệu trên LCD
     lcd.setCursor(0, 0);
     lcd.print("Temp: ");
     lcd.print(t, 1);
@@ -250,16 +281,16 @@ void loop() {
       http.begin(serverUrl);
       http.addHeader("Content-Type", "application/json");
 
-      // Tạo JSON payload đầy đủ cho mỗi lần gửi
+      // Tạo JSON payload đầy đủ
       String jsonPayload = "{";
       jsonPayload += "\"rooms\": {";
-      jsonPayload += "\"P.103\": {";
+      jsonPayload += "\"P.101\": {";
       jsonPayload += "\"readings\": {";
       jsonPayload += "\"" + String(readingId) + "\": {";
-      jsonPayload += "\"temperature\": " + String(t, 2) + ","; 
-      jsonPayload += "\"humidity\": " + String(h, 2) + ","; 
-      jsonPayload += "\"gas\": " + String(mq2Value, 2) + ","; 
-      jsonPayload += "\"state\": " + (state ? String("true") : String("false")) + ","; 
+      jsonPayload += "\"temperature\": " + String(t, 2) + ",";
+      jsonPayload += "\"humidity\": " + String(h, 2) + ",";
+      jsonPayload += "\"gas\": " + String(mq2Value, 2) + ",";
+      jsonPayload += "\"state\": " + (state ? String("true") : String("false")) + ",";
       jsonPayload += "\"timestamp\": " + String(currentMillis);
       jsonPayload += "}}}}}";
 
@@ -278,26 +309,45 @@ void loop() {
         Serial.println(httpResponseCode);
       }
       http.end();
-      
-      // Tăng ID đọc
+
       readingId++;
     } else {
       Serial.println("Wi-Fi not connected");
     }
 
-    // Hiển thị dữ liệu trên Serial Monitor
-    Serial.print("Time: ");
-    Serial.print(currentMillis / 1000);
-    Serial.print(" s, ");
-    Serial.print("State: ");
-    Serial.print(state ? "true" : "false");
-    Serial.print(", Humidity: ");
-    Serial.print(h, 2); 
-    Serial.print(" %\t");
-    Serial.print("Temperature: ");
-    Serial.print(t, 2); 
-    Serial.println(" °C");
-    Serial.print("MQ2 Value: ");
-    Serial.println(mq2Value, 2); 
+    // Chuyển trạng thái dựa vào điều kiện
+    if (state) {
+      Serial.println("In alert mode. Monitoring until safe...");
+      while (state) {
+        t = dht.readTemperature();
+        h = dht.readHumidity();
+        mq2Value = analogRead(MQ2PIN) / 1023.0 * 3.3;
+        state = (mq2Value > 4.5 || t > 40.0 || h > 80.0);
+        delay(1000); // Kiểm tra mỗi giây
+      }
+      Serial.println("Conditions safe. Returning to light sleep...");
+      inLightSleep = true;
+    } else if (abnormal) {
+      Serial.println("Abnormal conditions detected. Monitoring for 5 minutes...");
+      unsigned long startActive = millis();
+      while (millis() - startActive < 300000) { // Theo dõi trong 5 phút
+        t = dht.readTemperature();
+        h = dht.readHumidity();
+        mq2Value = analogRead(MQ2PIN) / 1023.0 * 3.3;
+        if (mq2Value > 4.5 || t > 40.0 || h > 80.0) {
+          state = true;
+          break;
+        }
+        delay(1000); // Kiểm tra mỗi giây
+      }
+      if (!state) {
+        Serial.println("No danger detected. Returning to light sleep...");
+        inLightSleep = true;
+      }
+    } else {
+      Serial.println("Environment normal. Returning to light sleep...");
+      inLightSleep = true;
+    }
   }
 }
+
