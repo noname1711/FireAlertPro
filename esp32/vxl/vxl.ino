@@ -11,8 +11,8 @@
 
 #define DHTPIN 21
 #define DHTTYPE DHT11
-#define MQ2PIN 36  // Đảm bảo MQ2PIN là chân ADC hợp lệ
-#define BUZZER_PIN 25 // Chân điều khiển còi buzzer
+#define MQ2PIN 36  //MQ2PIN là chân ADC 
+#define BUZZER_PIN 25 
 
 DHT dht(DHTPIN, DHTTYPE);
 float mq2Value = 0;
@@ -137,8 +137,8 @@ void setup() {
 
   unsigned long startAttemptTime = millis();
 
-  // Thêm kiểm tra timeout cho kết nối Wi-Fi
-  while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < 10000) { // Thử kết nối trong 10 giây
+  // kiểm tra timeout cho kết nối Wi-Fi
+  while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < 10000) { // kết nối demo 10 giây
     delay(500);
     Serial.print("...");
   }
