@@ -18,7 +18,6 @@ import retrofit2.Response
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
-import android.content.Intent
 import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
@@ -211,21 +210,10 @@ class RoomActivity : AppCompatActivity() {
         } else {
             tvFireState.text = "Không có cháy"
             tvFireState.setTextColor(ContextCompat.getColor(this, android.R.color.black))
-            sendNoFireNotification()
         }
     }
 
-    private fun sendNoFireNotification() {
-        val intent = Intent("com.example.firealertpro.NO_FIRE_ALERT")
-        intent.putExtra("roomNumber", roomNumber)
-        sendBroadcast(intent)
-    }
-
     private fun sendFireNotification() {
-        val intent = Intent("com.example.firealertpro.FIRE_ALERT")
-        intent.putExtra("roomNumber", roomNumber)
-        sendBroadcast(intent)
-
         // Tạo thông báo
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val notification = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
