@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "846562389998",
+    "firebase_url": "https://firealert-pro-default-rtdb.firebaseio.com",
+    "project_id": "firealert-pro",
+    "storage_bucket": "firealert-pro.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:846562389998:android:b72298fcb7ad212f0ce8ff",
+        "android_client_info": {
+          "package_name": "com.example.firealertpro"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA_qvzQR2I4Q2r3O7Yhaydl4rQGu3GufQQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
