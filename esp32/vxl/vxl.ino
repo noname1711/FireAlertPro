@@ -115,6 +115,13 @@ const char* serverIndex =
  "});"
  "</script>";
 
+volatile bool alarmState = false;
+volatile bool buttonPressed = false;
+
+void IRAM_ATTR handleButtonPress() {
+  buttonPressed = true;
+}
+
 void setup() {
   Serial.begin(115200);
   
@@ -124,6 +131,8 @@ void setup() {
   pinMode(LED_PIN, OUTPUT);
   pinMode(LED_BUILTIN_PIN, OUTPUT);
   pinMode(BUTTON_PIN, INPUT_PULLUP);  // Sử dụng pull-up nội bộ
+
+  attachInterrupt(digitalPinToInterrupt(BUTTON_PIN), handleButtonPress, FALLING);
 
   analogSetPinAttenuation(MQ2PIN, ADC_11db);
   srand(millis());
@@ -215,12 +224,12 @@ void triggerAlarm(bool state) {
     lcd.clear();
     lcd.setCursor(0, 1);
     lcd.print("!!! ALERT !!!");
-    Serial.println("Button pressed! Triggering alarm...");
+    Serial.println("Triggering alarm...");
   } else {
     digitalWrite(BUZZER_PIN, LOW);
     digitalWrite(LED_PIN, LOW);
     digitalWrite(LED_BUILTIN_PIN, LOW);
-    Serial.println("Button pressed! Turning off alarm...");
+    Serial.println("Turning off alarm...");
   }
 }
 
@@ -249,18 +258,10 @@ void loop() {
   }
 
   // Check if button is pressed
-  static bool buttonState = LOW;
-  static bool lastButtonState = HIGH;
-  if (digitalRead(BUTTON_PIN) == buttonState) {
-    if (buttonState == LOW) {
-      state = !state;
-      abnormal = state;
-      triggerAlarm(state);
-      delay(500);  // Debounce delay to avoid multiple triggers
-    }
-    buttonState = HIGH;
-  } else {
-    buttonState = digitalRead(BUTTON_PIN);
+  if (buttonPressed) {
+    buttonPressed = false;
+    alarmState = !alarmState;
+    triggerAlarm(alarmState);
   }
 
   if (currentMillis - previousMillis >= 30000) {
