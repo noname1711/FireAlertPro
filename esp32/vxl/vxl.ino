@@ -115,32 +115,6 @@ const char* serverIndex =
  "});"
  "</script>";
 
-// Biến để theo dõi trạng thái nút bấm
-volatile bool buttonPressed = false;
-portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
-
-// Hàm xử lý ngắt khi nút bấm được nhấn
-void IRAM_ATTR handleButtonPress() {
-  portENTER_CRITICAL_ISR(&mux);
-  buttonPressed = true;
-  portEXIT_CRITICAL_ISR(&mux);
-}
-
-void systemShutdown() {
-  portENTER_CRITICAL(&mux);
-  buttonPressed = false;  // Reset trạng thái
-  portEXIT_CRITICAL(&mux);
-  Serial.println("Button pressed!");
-  delay(100);  // Thêm độ trễ để tránh nhấn nút ngẫu nhiên
-  Serial.println("System shutdown by button press");
-  lcd.clear();
-  lcd.print("Shutdown");
-  digitalWrite(BUZZER_PIN, LOW);
-  digitalWrite(LED_PIN, LOW);
-  digitalWrite(LED_BUILTIN_PIN, LOW);
-  esp_deep_sleep_start();  // Chuyển ESP32 vào chế độ ngủ sâu để tắt hệ thống
-}
-
 void setup() {
   Serial.begin(115200);
   
@@ -150,9 +124,6 @@ void setup() {
   pinMode(LED_PIN, OUTPUT);
   pinMode(LED_BUILTIN_PIN, OUTPUT);
   pinMode(BUTTON_PIN, INPUT_PULLUP);  // Sử dụng pull-up nội bộ
-
-  // Thiết lập ngắt cho nút bấm
-  attachInterrupt(digitalPinToInterrupt(BUTTON_PIN), handleButtonPress, FALLING);
 
   analogSetPinAttenuation(MQ2PIN, ADC_11db);
   srand(millis());
@@ -227,8 +198,6 @@ void setup() {
   server.begin();
 
   esp_sleep_enable_timer_wakeup(WAKEUP_TIME * 1000000);
-  // Thiết lập nút bấm là nguồn đánh thức
-  esp_sleep_enable_ext0_wakeup(GPIO_NUM_12, 0); // Wakeup khi nút bấm được nhấn (mức thấp)
 }
 
 float calculatePPM(float analogValue, float R0, float ratioCleanAir) {
@@ -236,6 +205,23 @@ float calculatePPM(float analogValue, float R0, float ratioCleanAir) {
   float RS = (5.0 - voltage) / voltage;
   float ratio = RS / R0;
   return ratio / ratioCleanAir;
+}
+
+void triggerAlarm(bool state) {
+  if (state) {
+    digitalWrite(BUZZER_PIN, HIGH);
+    digitalWrite(LED_PIN, HIGH);
+    digitalWrite(LED_BUILTIN_PIN, HIGH);
+    lcd.clear();
+    lcd.setCursor(0, 1);
+    lcd.print("!!! ALERT !!!");
+    Serial.println("Button pressed! Triggering alarm...");
+  } else {
+    digitalWrite(BUZZER_PIN, LOW);
+    digitalWrite(LED_PIN, LOW);
+    digitalWrite(LED_BUILTIN_PIN, LOW);
+    Serial.println("Button pressed! Turning off alarm...");
+  }
 }
 
 void loop() {
@@ -262,17 +248,27 @@ void loop() {
     inLightSleep = false;
   }
 
+  // Check if button is pressed
+  static bool buttonState = LOW;
+  static bool lastButtonState = HIGH;
+  if (digitalRead(BUTTON_PIN) == buttonState) {
+    if (buttonState == LOW) {
+      state = !state;
+      abnormal = state;
+      triggerAlarm(state);
+      delay(500);  // Debounce delay to avoid multiple triggers
+    }
+    buttonState = HIGH;
+  } else {
+    buttonState = digitalRead(BUTTON_PIN);
+  }
+
   if (currentMillis - previousMillis >= 30000) {
     previousMillis = currentMillis;
 
     float h = dht.readHumidity();
     float t = dht.readTemperature();
     mq2Value = analogRead(MQ2PIN) / 1023.0 * 3.3;
-
-    //if (isnan(h) || isnan(t)) {
-      //h = 70 + rand() % 6;
-      //t = 17 + rand() % 4;
-    //}
 
     float R0 = 10.0;
     float ratioCleanAir = 9.83;
@@ -284,6 +280,7 @@ void loop() {
       digitalWrite(BUZZER_PIN, HIGH);
       digitalWrite(LED_PIN, HIGH);
       digitalWrite(LED_BUILTIN_PIN, HIGH);
+      lcd.clear();
       lcd.setCursor(0, 1);
       lcd.print("!!! ALERT !!!");
     } else if (lpg_ppm > 500 || t > 35.0 || h > 75.0) {
@@ -393,10 +390,5 @@ void loop() {
       Serial.println("Environment normal. Returning to light sleep...");
       inLightSleep = true;
     }
-  }
-
-  // Kiểm tra trạng thái nút bấm và thực hiện shutdown hệ thống nếu nút được nhấn
-  if (buttonPressed) {
-    systemShutdown();
   }
 }
