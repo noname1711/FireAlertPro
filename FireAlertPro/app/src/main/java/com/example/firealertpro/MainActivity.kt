@@ -1,5 +1,7 @@
 package com.example.firealertpro
 
+import android.app.NotificationManager
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.widget.Button
@@ -12,11 +14,14 @@ import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
 import android.util.Log
+import androidx.core.app.NotificationCompat
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var apiService: ApiService
     private lateinit var gridLayout: GridLayout
+    private val NOTIFICATION_CHANNEL_ID = "FIRE_ALERT_CHANNEL"
+    private val NOTIFICATION_ID = 1
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -69,6 +74,8 @@ class MainActivity : AppCompatActivity() {
                 if (response.isSuccessful) {
                     val rooms = response.body()?.rooms ?: emptyMap()
                     updateRoomColors(rooms)
+                    // Gửi thông báo khi phát hiện cháy
+                    sendFireNotification()
                 } else {
                     Log.e("API Error", "Error: ${response.code()} - ${response.message()}")
                 }
@@ -96,5 +103,18 @@ class MainActivity : AppCompatActivity() {
                 button.setBackgroundColor(color)
             }
         }
+    }
+
+    private fun sendFireNotification() {
+        // Tạo thông báo
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val notification = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
+            .setSmallIcon(R.drawable.fire)
+            .setContentTitle("Cảnh báo cháy!")
+            .setContentText("Có cháy, vui lòng sơ tán và gọi cứu hộ!")
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .build()
+        notificationManager.notify(NOTIFICATION_ID, notification)
     }
 }

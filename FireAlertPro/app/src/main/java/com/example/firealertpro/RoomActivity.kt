@@ -35,10 +35,17 @@ class RoomActivity : AppCompatActivity() {
     private lateinit var apiService: ApiService
     private val NOTIFICATION_CHANNEL_ID = "FIRE_ALERT_CHANNEL"
     private val NOTIFICATION_ID = 1
+    private lateinit var tvAverageTemperature: TextView
+    private lateinit var tvAverageHumidity: TextView
+    private lateinit var tvAverageGas: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_room)
+
+        tvAverageTemperature = findViewById(R.id.tvAverageTemperature)
+        tvAverageHumidity = findViewById(R.id.tvAverageHumidity)
+        tvAverageGas = findViewById(R.id.tvAverageGas)
 
         // Get room number from Intent
         roomNumber = intent.getStringExtra("roomNumber") ?: "Unknown Room"
@@ -172,7 +179,7 @@ class RoomActivity : AppCompatActivity() {
             // In ra thời gian đã định dạng
             Log.d("RoomActivity", "Timestamp: $formattedTime, Temperature: ${reading.temperature}, Humidity: ${reading.humidity}, Gas: ${reading.gas}")
         }
-
+        calculateAndDisplayAverages(readings)
         // Cập nhật biểu đồ
         updateChart(temperatureChart, temperatureEntries, "Nhiệt độ")
         updateChart(humidityChart, humidityEntries, "Độ ẩm")
@@ -185,6 +192,9 @@ class RoomActivity : AppCompatActivity() {
         temperatureChart.visibility = View.VISIBLE
         humidityChart.visibility = View.VISIBLE
         gasChart.visibility = View.VISIBLE
+
+        //tính tb
+        calculateAndDisplayAverages(readings)
     }
 
 
@@ -217,12 +227,28 @@ class RoomActivity : AppCompatActivity() {
         // Tạo thông báo
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val notification = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
-            .setSmallIcon(R.drawable.fire) // Thay thế bằng icon phù hợp
+            .setSmallIcon(R.drawable.fire)
             .setContentTitle("Cảnh báo cháy!")
-            .setContentText("VCL CHÁY CMNR m ơi!")
+            .setContentText("Có cháy, vui lòng sơ tán và gọi cứu hộ!")
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .build()
         notificationManager.notify(NOTIFICATION_ID, notification)
+    }
+
+    private fun calculateAndDisplayAverages(readings: List<Reading>) {
+        if (readings.isNotEmpty()) {
+            val averageTemperature = readings.map { it.temperature }.average()
+            val averageHumidity = readings.map { it.humidity }.average()
+            val averageGas = readings.map { it.gas }.average()
+
+            tvAverageTemperature.text = "Nhiệt độ trung bình: %.2f °C".format(averageTemperature)
+            tvAverageHumidity.text = "Độ ẩm trung bình: %.2f %%".format(averageHumidity)
+            tvAverageGas.text = "Nồng độ gas trung bình: %.2f ppm".format(averageGas)
+        } else {
+            tvAverageTemperature.text = "Nhiệt độ trung bình: N/A"
+            tvAverageHumidity.text = "Độ ẩm trung bình: N/A"
+            tvAverageGas.text = "Nồng độ gas trung bình: N/A"
+        }
     }
 }
