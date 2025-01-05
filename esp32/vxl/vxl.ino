@@ -1,9 +1,10 @@
 #include <DHT.h>
 #include <Wire.h>
-#include <WiFi.h>
 #include <HTTPClient.h>
 #include <LiquidCrystal_I2C.h>
 #include <esp_sleep.h>
+
+#include <WiFi.h>
 #include <WiFiClient.h>
 #include <WebServer.h>
 #include <ESPmDNS.h>
@@ -37,6 +38,8 @@ LiquidCrystal_I2C lcd(0x27, 16, 2);
 
 WebServer server(80);
 
+bool otaInProgress = false;  // Flag to indicate OTA in progress
+
 const char* loginIndex = 
  "<form name='loginForm'>"
     "<table width='20%' bgcolor='DC143C' align='center'>"
@@ -67,7 +70,7 @@ const char* loginIndex =
 "<script>"
     "function check(form)"
     "{"
-    "if(form.userid.value=='hunghamhoc' && form.pwd.value=='hungle1711')"   
+    "if(form.userid.value=='hunghamhoc' && form.pwd.value=='hungle1711')"   //pass 
     "{"
     "window.open('/serverIndex')"
     "}"
@@ -173,10 +176,12 @@ void setup() {
   Serial.println("mDNS responder started");
   
   server.on("/", HTTP_GET, []() {
+    otaInProgress = true;  // Đặt cờ OTA đang diễn ra
     server.sendHeader("Connection", "close");
     server.send(200, "text/html", loginIndex);
   });
   server.on("/serverIndex", HTTP_GET, []() {
+    otaInProgress = true;  // Đặt cờ OTA đang diễn ra
     server.sendHeader("Connection", "close");
     server.send(200, "text/html", serverIndex);
   });
@@ -186,6 +191,7 @@ void setup() {
     server.send(200, "text/plain", (Update.hasError()) ? "FAIL" : "OK");
     ESP.restart();
   }, []() {
+    otaInProgress = true;  // Đặt cờ OTA đang diễn ra
     HTTPUpload& upload = server.upload();
     if (upload.status == UPLOAD_FILE_START) {
       Serial.printf("Update: %s\n", upload.filename.c_str());
@@ -197,6 +203,7 @@ void setup() {
         Update.printError(Serial);
       }
     } else if (upload.status == UPLOAD_FILE_END) {
+      otaInProgress = false;  // Xóa cờ OTA đang diễn ra
       if (Update.end(true)) {
         Serial.printf("Update Success: %u\nRebooting...\n", upload.totalSize);
       } else {
@@ -243,7 +250,7 @@ void loop() {
   bool abnormal = false;
 
   // Kiểm tra trạng thái light sleep
-  if (inLightSleep && !state && !abnormal) {
+  if (inLightSleep && !state && !abnormal && !otaInProgress) {  //check thêm cờ ota
     Serial.println("Entering light sleep...");
     lcd.clear();
     lcd.print("Light sleep...");
@@ -309,7 +316,7 @@ void loop() {
 
       String jsonPayload = "{";
       jsonPayload += "\"rooms\": {";
-      jsonPayload += "\"P.101\": {";
+      jsonPayload += "\"P.901\": {";
       jsonPayload += "\"readings\": {";
       jsonPayload += "\"" + String(readingId) + "\": {";
       jsonPayload += "\"temperature\": " + String(t, 2) + ",";
