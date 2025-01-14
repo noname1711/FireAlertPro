@@ -3,7 +3,6 @@
 #include <HTTPClient.h>
 #include <LiquidCrystal_I2C.h>
 #include <esp_sleep.h>
-
 #include <WiFi.h>
 #include <WiFiClient.h>
 #include <WebServer.h>
@@ -14,9 +13,9 @@
 #define DHTTYPE DHT22
 #define MQ2PIN 33
 #define BUZZER_PIN 4
-#define LED_PIN 2  // Đèn LED 2 chân
-#define LED_BUILTIN_PIN 5  // Đèn LED trên ESP32
-#define BUTTON_PIN 12  // Nút bấm
+#define LED_PIN 2
+#define LED_BUILTIN_PIN 5
+#define BUTTON_PIN 12
 #define WAKEUP_TIME 20
 
 DHT dht(DHTPIN, DHTTYPE);
@@ -28,17 +27,19 @@ bool inLightSleep = true;
 unsigned long activeStartTime = 0;
 const unsigned long ACTIVE_DURATION = 5 * 60 * 1000;
 
-const char* ssid = "199TKC-Tầng 2";
-const char* password = "19922222";
+const char* ssid = "TP-LINK_17FA";
+const char* password = "99990000";
 
 const char* host = "esp32hungle";
 const char* serverUrl = "http://45.117.179.18:5000/data";
+
+portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
 
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 
 WebServer server(80);
 
-bool otaInProgress = false;  // Flag to indicate OTA in progress
+bool otaInProgress = false;
 
 const char* loginIndex = 
  "<form name='loginForm'>"
@@ -120,22 +121,28 @@ const char* serverIndex =
 
 volatile bool alarmState = false;
 volatile bool buttonPressed = false;
+unsigned long lastButtonPress = 0;
 
 void IRAM_ATTR handleButtonPress() {
-  buttonPressed = true;
+  if (millis() - lastButtonPress > 50) {  // Debounce time 50ms
+    buttonPressed = true;
+    lastButtonPress = millis();
+    portENTER_CRITICAL_ISR(&mux);
+    portEXIT_CRITICAL_ISR(&mux);
+  }
 }
 
 void setup() {
   Serial.begin(115200);
   
   dht.begin();
-  pinMode(MQ2PIN, INPUT);
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
+
+  attachInterrupt(digitalPinToInterrupt(BUTTON_PIN), handleButtonPress, FALLING);
+
   pinMode(BUZZER_PIN, OUTPUT);
   pinMode(LED_PIN, OUTPUT);
   pinMode(LED_BUILTIN_PIN, OUTPUT);
-  pinMode(BUTTON_PIN, INPUT_PULLUP);  // Sử dụng pull-up nội bộ
-
-  attachInterrupt(digitalPinToInterrupt(BUTTON_PIN), handleButtonPress, FALLING);
 
   analogSetPinAttenuation(MQ2PIN, ADC_11db);
   srand(millis());
@@ -176,12 +183,12 @@ void setup() {
   Serial.println("mDNS responder started");
   
   server.on("/", HTTP_GET, []() {
-    otaInProgress = true;  // Đặt cờ OTA đang diễn ra
+    otaInProgress = true;
     server.sendHeader("Connection", "close");
     server.send(200, "text/html", loginIndex);
   });
   server.on("/serverIndex", HTTP_GET, []() {
-    otaInProgress = true;  // Đặt cờ OTA đang diễn ra
+    otaInProgress = true;
     server.sendHeader("Connection", "close");
     server.send(200, "text/html", serverIndex);
   });
@@ -191,7 +198,7 @@ void setup() {
     server.send(200, "text/plain", (Update.hasError()) ? "FAIL" : "OK");
     ESP.restart();
   }, []() {
-    otaInProgress = true;  // Đặt cờ OTA đang diễn ra
+    otaInProgress = true;
     HTTPUpload& upload = server.upload();
     if (upload.status == UPLOAD_FILE_START) {
       Serial.printf("Update: %s\n", upload.filename.c_str());
@@ -203,7 +210,7 @@ void setup() {
         Update.printError(Serial);
       }
     } else if (upload.status == UPLOAD_FILE_END) {
-      otaInProgress = false;  // Xóa cờ OTA đang diễn ra
+      otaInProgress = false;
       if (Update.end(true)) {
         Serial.printf("Update Success: %u\nRebooting...\n", upload.totalSize);
       } else {
@@ -249,8 +256,8 @@ void loop() {
   bool state = false;
   bool abnormal = false;
 
-  // Kiểm tra trạng thái light sleep
-  if (inLightSleep && !state && !abnormal && !otaInProgress) {  //check thêm cờ ota
+  if (inLightSleep && !state && !abnormal && !otaInProgress) {
+    delay(5000);
     Serial.println("Entering light sleep...");
     lcd.clear();
     lcd.print("Light sleep...");
@@ -264,11 +271,11 @@ void loop() {
     inLightSleep = false;
   }
 
-  // Check if button is pressed
   if (buttonPressed) {
     buttonPressed = false;
     alarmState = !alarmState;
     triggerAlarm(alarmState);
+    Serial.println("Button pressed, alarm state changed");
   }
 
   if (currentMillis - previousMillis >= 30000) {
@@ -284,30 +291,38 @@ void loop() {
 
     if (lpg_ppm > 1000 || t > 40.0 || h > 80.0) {
       state = true;
-      abnormal = true;
+      abnormal = true; 
       digitalWrite(BUZZER_PIN, HIGH);
       digitalWrite(LED_PIN, HIGH);
       digitalWrite(LED_BUILTIN_PIN, HIGH);
       lcd.clear();
-      lcd.setCursor(0, 1);
+      lcd.setCursor(0, 0);
       lcd.print("!!! ALERT !!!");
     } else if (lpg_ppm > 500 || t > 35.0 || h > 75.0) {
       abnormal = true;
+      lcd.clear();
+      lcd.setCursor(0, 0);
+      lcd.print("T: ");
+      lcd.print(t, 2);
+      lcd.setCursor(0, 1);
+      lcd.print("H: ");
+      lcd.print(h, 2);
+      lcd.print(" G: ");
+      lcd.print(lpg_ppm, 2);
     } else {
       digitalWrite(BUZZER_PIN, LOW);
       digitalWrite(LED_PIN, LOW);
       digitalWrite(LED_BUILTIN_PIN, LOW);
+      lcd.clear();
+      lcd.setCursor(0, 0);
+      lcd.print("T: ");
+      lcd.print(t, 2);
+      lcd.setCursor(0, 1);
+      lcd.print("H: ");
+      lcd.print(h, 2);
+      lcd.print(" G: ");
+      lcd.print(lpg_ppm, 2);
     }
-
-    lcd.clear();
-    lcd.setCursor(0, 0);
-    lcd.print("T: ");
-    lcd.print(t, 2);
-    lcd.setCursor(0, 1);
-    lcd.print("H: ");
-    lcd.print(h, 2);
-    lcd.print(" G: ");
-    lcd.print(lpg_ppm, 2);
 
     if (WiFi.status() == WL_CONNECTED) {
       HTTPClient http;
