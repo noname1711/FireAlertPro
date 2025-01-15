@@ -124,7 +124,7 @@ volatile bool buttonPressed = false;
 unsigned long lastButtonPress = 0;
 
 void IRAM_ATTR handleButtonPress() {
-  if (millis() - lastButtonPress > 50) {  // Debounce time 50ms
+  if (millis() - lastButtonPress > 10000) {  // 2 lần bấm cách 10s
     buttonPressed = true;
     lastButtonPress = millis();
     portENTER_CRITICAL_ISR(&mux);
@@ -138,7 +138,7 @@ void setup() {
   dht.begin();
   pinMode(BUTTON_PIN, INPUT_PULLUP);
 
-  attachInterrupt(digitalPinToInterrupt(BUTTON_PIN), handleButtonPress, FALLING);
+  attachInterrupt(digitalPinToInterrupt(BUTTON_PIN), handleButtonPress, RISING);
 
   pinMode(BUZZER_PIN, OUTPUT);
   pinMode(LED_PIN, OUTPUT);
@@ -230,8 +230,8 @@ float calculatePPM(float analogValue, float R0, float ratioCleanAir) {
   return ratio / ratioCleanAir;
 }
 
-void triggerAlarm(bool state) {
-  if (state) {
+void triggerAlarm(bool ButtonState) {
+  if (ButtonState) {
     digitalWrite(BUZZER_PIN, HIGH);
     digitalWrite(LED_PIN, HIGH);
     digitalWrite(LED_BUILTIN_PIN, HIGH);
