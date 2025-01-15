@@ -289,7 +289,7 @@ void loop() {
     float ratioCleanAir = 9.83;
     float lpg_ppm = calculatePPM(mq2Value, R0, ratioCleanAir);
 
-    if (lpg_ppm > 1000 || t > 40.0 || h > 80.0) {
+    if (lpg_ppm > 1000 || t > 40.0 || h < 20.0) {
       state = true;
       abnormal = true; 
       digitalWrite(BUZZER_PIN, HIGH);
@@ -298,7 +298,7 @@ void loop() {
       lcd.clear();
       lcd.setCursor(0, 0);
       lcd.print("!!! ALERT !!!");
-    } else if (lpg_ppm > 500 || t > 35.0 || h > 75.0) {
+    } else if (lpg_ppm > 500 || t > 35.0 || (h >= 20.0 && h < 29.0)) {
       abnormal = true;
       lcd.clear();
       lcd.setCursor(0, 0);
@@ -371,7 +371,7 @@ void loop() {
         mq2Value = analogRead(MQ2PIN) / 1023.0 * 3.3;
         float lpg_ppm = calculatePPM(mq2Value, R0, ratioCleanAir);
         
-        state = (lpg_ppm > 1000 || t > 40.0 || h > 80.0);
+        state = (lpg_ppm > 1000 || t > 40.0 || h < 20.0);
         if (state) {
           digitalWrite(BUZZER_PIN, HIGH);
           digitalWrite(LED_PIN, HIGH);
@@ -399,7 +399,7 @@ void loop() {
         mq2Value = analogRead(MQ2PIN) / 1023.0 * 3.3;
         float lpg_ppm = calculatePPM(mq2Value, R0, ratioCleanAir);
         
-        if (lpg_ppm > 1000 || t > 40.0 || h > 80.0) {
+        if (lpg_ppm > 1000 || t > 40.0 || h < 20.0) {
           state = true;
           break;
         }
