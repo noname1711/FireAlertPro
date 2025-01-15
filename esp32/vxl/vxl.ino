@@ -122,12 +122,20 @@ const char* serverIndex =
 volatile bool alarmState = false;
 volatile bool buttonPressed = false;
 unsigned long lastButtonPress = 0;
+bool checkNgat = false;
 
 void IRAM_ATTR handleButtonPress() {
-  if (millis() - lastButtonPress > 10000) {  // 2 lần bấm cách 10s
+  if (millis() - lastButtonPress > 10000) { // 2 lần bấm cách 10s
+    portENTER_CRITICAL_ISR(&mux); 
     buttonPressed = true;
     lastButtonPress = millis();
-    portENTER_CRITICAL_ISR(&mux);
+    if (buttonPressed) {
+      checkNgat = true;
+      buttonPressed = false;  // Đặt lại cờ
+      alarmState = !alarmState;  // Đảo trạng thái báo động
+      triggerAlarm(alarmState); // Kích hoạt hoặc tắt báo động
+      Serial.println("Button pressed, alarm state changed");
+    }
     portEXIT_CRITICAL_ISR(&mux);
   }
 }
@@ -256,7 +264,7 @@ void loop() {
   bool state = false;
   bool abnormal = false;
 
-  if (inLightSleep && !state && !abnormal && !otaInProgress) {
+  if (inLightSleep && !state && !abnormal && !otaInProgress && !checkNgat) {
     delay(5000);
     Serial.println("Entering light sleep...");
     lcd.clear();
@@ -269,13 +277,7 @@ void loop() {
     Serial.println("Woke up from light sleep!");
     previousMillis = millis();
     inLightSleep = false;
-  }
-
-  if (buttonPressed) {
-    buttonPressed = false;
-    alarmState = !alarmState;
-    triggerAlarm(alarmState);
-    Serial.println("Button pressed, alarm state changed");
+    checkNgat = false; // Đặt lại cờ sau khi xử lý ngắt
   }
 
   if (currentMillis - previousMillis >= 30000) {
