@@ -27,8 +27,8 @@ bool inLightSleep = true;
 unsigned long activeStartTime = 0;
 const unsigned long ACTIVE_DURATION = 5 * 60 * 1000;
 
-const char* ssid = "TP-LINK_17FA";
-const char* password = "99990000";
+const char* ssid = "TP-LINK_17FA";  //"199TKC-Tầng 2_5G";
+const char* password = "99990000";  //"19922222";
 
 const char* host = "esp32hungle";
 const char* serverUrl = "http://45.117.179.18:5000/data";
@@ -138,7 +138,7 @@ void setup() {
   dht.begin();
   pinMode(BUTTON_PIN, INPUT_PULLUP);
 
-  attachInterrupt(digitalPinToInterrupt(BUTTON_PIN), handleButtonPress, RISING);
+  attachInterrupt(digitalPinToInterrupt(BUTTON_PIN), handleButtonPress, FALLING);
 
   pinMode(BUZZER_PIN, OUTPUT);
   pinMode(LED_PIN, OUTPUT);
@@ -300,6 +300,9 @@ void loop() {
       lcd.print("!!! ALERT !!!");
     } else if (lpg_ppm > 500 || t > 35.0 || (h >= 20.0 && h < 29.0)) {
       abnormal = true;
+      digitalWrite(BUZZER_PIN, LOW);
+      digitalWrite(LED_PIN, LOW);
+      digitalWrite(LED_BUILTIN_PIN, LOW);
       lcd.clear();
       lcd.setCursor(0, 0);
       lcd.print("T: ");
@@ -377,7 +380,7 @@ void loop() {
           digitalWrite(LED_PIN, HIGH);
           digitalWrite(LED_BUILTIN_PIN, HIGH);
         } else {
-          if (millis() - alertStartMillis >= 30000) {
+          if (millis() - alertStartMillis >= 30000) {   //check 30s
             digitalWrite(BUZZER_PIN, LOW);
             digitalWrite(LED_PIN, LOW);
             digitalWrite(LED_BUILTIN_PIN, LOW);
@@ -393,7 +396,7 @@ void loop() {
     } else if (abnormal) {
       Serial.println("Abnormal conditions detected. Monitoring for 5 minutes...");
       unsigned long startActive = millis();
-      while (millis() - startActive < 300000) {
+      while (millis() - startActive < 300000) {   // check 5 phút 
         t = dht.readTemperature();
         h = dht.readHumidity();
         mq2Value = analogRead(MQ2PIN) / 1023.0 * 3.3;
