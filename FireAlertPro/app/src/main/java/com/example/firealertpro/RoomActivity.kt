@@ -207,7 +207,7 @@ class RoomActivity : AppCompatActivity() {
             circleRadius = 4f
             setDrawValues(false)
         }
-        chart.data = LineData(dataSet)  
+        chart.data = LineData(dataSet)
         chart.invalidate() // Refresh chart
     }
 

@@ -74,8 +74,10 @@ class MainActivity : AppCompatActivity() {
                 if (response.isSuccessful) {
                     val rooms = response.body()?.rooms ?: emptyMap()
                     updateRoomColors(rooms)
-                    // Gửi thông báo khi phát hiện cháy
-                    sendFireNotification()
+                    //check từng phòng xem có phg nào cháy ko
+                    if (rooms.values.any { room -> room.readings.values.any { it.state } }) {
+                        sendFireNotification()
+                    }
                 } else {
                     Log.e("API Error", "Error: ${response.code()} - ${response.message()}")
                 }
@@ -83,6 +85,7 @@ class MainActivity : AppCompatActivity() {
 
             override fun onFailure(call: Call<RoomsResponse>, t: Throwable) {
                 Log.e("API Failure", "Failure: ${t.message}")
+                t.printStackTrace()
             }
         })
     }
